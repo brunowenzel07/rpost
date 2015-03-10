@@ -13,8 +13,9 @@ from datetime import datetime
 import pprint
 import logging
 from time import sleep
-
-
+from fractions import Fraction
+import unicodedata
+import numpy
 # def getracetype(place):
 #     racetypes = ['NvH', 'NHF', 'PTP', 'MdPTP', 'MdHntPTP', 'Hc', 'Md', '3yMd', 'MdAc']
 #     if in racename 
@@ -25,6 +26,107 @@ from time import sleep
 #         except ValueError:
 #             return None
 
+def horselengthprocessor(value):
+    #covers '' and '-'
+
+    if '---' in value:
+        return None
+    elif value == '-':
+        #winner
+        return 0.0
+    elif "-" in value and len(value) > 1:
+        return float(Fraction(value.split('-')[0]) + Fraction(value.split('-')[1]))
+    elif value == 'N':
+        return 0.3
+    elif value == 'SH':
+        return 0.1
+    elif value == 'HD':
+        return 0.2
+    elif value == 'SN':
+        return 0.25  
+    #nose?           
+    elif value == 'NOSE':
+        return 0.05
+    elif '/' in value:
+         return float(Fraction(value))        
+    elif value.isdigit():
+        return try_float(value)
+    else:
+        return None 
+
+
+def parse_mixed_fraction(s):
+    if s.isdigit():
+        return float(s)
+    elif len(s) == 1:
+        return unicodedata.numeric(s[-1])
+    else:
+        return float(s[:-1]) + unicodedata.numeric(s[-1])
+
+def sanitizelbw(lbw):
+    if "L" not in lbw:
+        '''suspect lbw'''
+        return None
+    lbw = lbw.replace("L", "")
+    return parse_mixed_fraction(lbw)
+
+#order is gear, SP
+def parseL1gearSP(L1gearSP):
+    if " " not in L1gearSP:
+        return (None, None)
+    elif len(L1gearSP.split(" ")) >1:
+        return L1gearSP.split(" ")
+    else:
+        return (None, L1gearSP.split(" ")[0])
+
+def distanetofurlongs(imperialdistance):
+    pass
+
+def isFavorite(winodds):
+    if winodds is None:
+        return None
+    return "F" or "J" or "C" in winodds
+
+def decimalizeodds(winodds):
+    '''edge cases 9/4F EvensF '''
+    if winodds is None:
+        return None
+    elif "Evens" in winodds:
+        return 2.0
+    else:
+        #remove non digit chars not /
+        winodds = winodds.replace("F", "").replace("J", "").replace("C", "")
+        num, denom = winodds.split("/")
+        dec = Fraction(int(num), int(denom)) + Fraction(1,1)
+        return float(dec)
+
+
+def isbeatenfavorite(winodds, place):
+    return isFavorite(winodds) and place ==1
+
+#imperialtofurlongs
+def imperialtofurlongs(idist):
+    '''ex 2m2f50y'''
+    miles = 0
+    furlongs = 0
+    yards = 0
+    if "f" in idist and "m" in idist:
+        miles, furlongs = try_int(idist.split("m")[0]), try_int(idist.split("f")[0].split("m")[1])
+    if "f" in idist and "m" not in idist:
+        furlongs = try_int(idist.split("f")[0])
+    return miles*8 + furlongs
+
+def imperialweighttokg(imperialweight):
+    '''stone ounces '''
+    if "-" not in imperialweight or imperialweight is None:
+        return None
+    else:
+        stones, pounds = imperialweight.split("-")
+        return round( ((int(stones)*14)+int(pounds))/2.20462262, 0)
+
+
+
+'''2m2f50y'''
 def getdistance(distancegoing):
     '''2 cases: case1: has dot then decimal'''
     res = ""
@@ -38,7 +140,13 @@ def getdistance(distancegoing):
 
 
 def tidytomoney(moneyvalue):
-    return ''.join([ i for i in moneyvalue if i.isdigit()])
+    from decimal import Decimal
+    #replace non money chars
+    if " " in moneyvalue:
+        moneyvalue = moneyvalue.split(" ")[0]
+    # ''.join( ''.join([ i for i in L1distgoing if not i.isdigit() ])) 
+    newmoney = float(moneyvalue.replace(",", ""))
+    return decimal.Decimal(newmoney)
 
 
 def tf(values, encoding="utf-8"):
@@ -56,19 +164,52 @@ def cleandamsire(damsire):
     #count number of ( if 2 remove outer
     return damsire[1:-1]
 
-todaysdate = datetime.today().strftime("%Y-%m-%d")
+def try_int(value):
+    try:
+        return int(value)
+    except:
+        return 0
+
+def today():
+    return datetime.today()
+
+todaysdate = datetime.today()
+todaysdatestr = datetime.today().strftime("%Y-%m-%d")
 # from rpost.items import RpostResultsItem
 class RPostItemsLoader(ItemLoader):
     default_item_class = RpostResultsItem
     default_output_processor = Compose(TakeFirst(), unicode, unicode.strip)
     pm1_out = Compose(default_output_processor, removeunichars, tidytomoney)
     pm2_out = Compose(default_output_processor, removeunichars, tidytomoney)
-    pm3_out = Compose(default_output_processor, removeunichars)
-    pm4_out = Compose(default_output_processor, removeunichars)
-    pm5_out = Compose(default_output_processor, removeunichars)
-    totalpm_out = Compose(default_output_processor, removeunichars, tidytomoney)
+    pm3_out = Compose(default_output_processor, removeunichars, tidytomoney)
+    pm4_out = Compose(default_output_processor, removeunichars, tidytomoney)
+    pm5_out = Compose(default_output_processor, removeunichars, tidytomoney)
+    prizemoney_out = Compose(default_output_processor, removeunichars, tidytomoney)
+    racename_out = Compose(default_output_processor, removeunichars)
+    gear_out = Compose(default_output_processor, removeunichars)
     OR_out = Compose(default_output_processor, removeunichars)
+    TS_out = Compose(default_output_processor, removeunichars)
+    RPR_out = Compose(default_output_processor, removeunichars)
     damsire_out = Compose(default_output_processor, removeunichars, cleandamsire)
+    jockeyname_out = Compose(default_output_processor, removeunichars)
+    trainername_out = Compose(default_output_processor, removeunichars)
+    sire_out = Compose(default_output_processor, removeunichars)
+    dam_out = Compose(default_output_processor, removeunichars)
+    horsename_out = Compose(default_output_processor, removeunichars)
+    prizemoney_in = Compose(default_output_processor, removeunichars,tidytomoney)
+    L1racedate = Compose(default_output_processor, removeunichars)
+    L2racedate = Compose(default_output_processor, removeunichars)
+    L3racedate = Compose(default_output_processor, removeunichars)
+    L4racedate = Compose(default_output_processor, removeunichars)
+    L5racedate = Compose(default_output_processor, removeunichars)
+    L6racedate = Compose(default_output_processor, removeunichars)
+    L1comment_out = Compose(default_output_processor, removeunichars)
+    L2comment_out = Compose(default_output_processor, removeunichars)
+    L3comment_out = Compose(default_output_processor, removeunichars)
+    L4comment_out = Compose(default_output_processor, removeunichars)
+    L5comment_out = Compose(default_output_processor, removeunichars)
+    L6comment_out = Compose(default_output_processor, removeunichars)
+    currentodds_out = Compose(default_output_processor, decimalizeodds)
 #crawl spider with rules?
 
 class RPracedaySpider(scrapy.Spider):
@@ -81,6 +222,7 @@ class RPracedaySpider(scrapy.Spider):
     def __init__(self):
         pass
 
+    #TODO: fix currentodds, prizemoney decimalize  
     def parse(self, response):
         # if u"Today's Horse Racing Cards" not in response.body:
         #     log.msg("race card page not ready, waiting 2 secs", logLevel=log.INFO)
@@ -97,125 +239,219 @@ class RPracedaySpider(scrapy.Spider):
                 for link in LinkExtractor(restrict_xpaths="//a[contains(@title,'View Card')]",).extract_links(response)[:-1]:
                     yield Request(link.url)
                 l = RPostItemsLoader()
-
+                items = list()
                 # d = response.url.split("_")
-                l.add_value('racedate', todaysdate)
-                # l.add_value('rpraceid', ''.join([ i for i in d[-1] if i.isdigit()]))
-                racetime = response.xpath("//span[@class='navRace']/span/text()").extract()[0]
-                l.add_value('racetime', racetime)
-                l.add_value('racecourse', response.xpath("//span[contains(@class,'placeRace')]/text()").extract()[0].strip())
+                racedatematch = re.match(r'.*r_date=(\d\d\d\d-\d\d-\d\d)&.*', response.url)
+                if racedatematch:
+                    l.add_value('racedate', datetime.strptime(racedatematch.group(1), "%Y-%M-%d") )
+                l.add_value('rpraceid',  re.match(r'.*race_id=(\d+).*', response.url).group(1))
+                l.add_value('racetime', response.xpath("//span[@class='navRace']/span/text()").extract()[0])
+                l.add_value('racecourse', response.xpath("//span[contains(@class,'placeRace')]/text()").extract()[0].strip() )
+                theracecourse =l.get_collected_values('racecourse')[0]
+                #exclude foreign courses
+                if ("(IRE)" in theracecourse or "(AW)" in theracecourse) or theracecourse.count("(") ==0:
+                    racename = response.xpath("//div[@class='info']/p/strong/strong[contains(@class,'uppercase')]/text()").extract()
+                    l.add_value("racename", racename)
+                    l.add_value('pm1', response.xpath("//ul[@class='results clearfix']/li/strong/text()").extract()[0])
+                    
+                    #race details
+                    rd = response.xpath("//ul[@class='results clearfix']")
+                    runners = rd.xpath("li[text()[contains(.,'Runners:')]]/strong/text()").extract()[0].strip()
+                    l.add_value("runners", runners)
+                    imperialdistance = rd.xpath("li[text()[contains(.,'Distance:')]]/strong/text()").extract()[0].strip()
+                    l.add_value("imperialdistance", imperialtofurlongs(imperialdistance))
+                    going = rd.xpath("li[text()[contains(.,'Going:')]]/strong/text()").extract()[0].strip()
+                    l.add_value("going", going)
+                    
+                    #race conds
 
-                racename = response.xpath("//div[@class='info']/p/strong/strong[contains(@class,'uppercase')]/text()").extract()
-                l.add_value("racename", racename)
-                l.add_value('pm1', response.xpath("//ul[@class='results clearfix']/li/strong/text()").extract()[0].encode('ascii', 'ignore'))
-                
-                #race details
-                rd = response.xpath("//ul[@class='results clearfix']")
-                runners = rd.xpath("li[text()[contains(.,'Runners:')]]/strong/text()").extract()[0].strip()
-                l.add_value("runners", runners)
-                imperialdistance = rd.xpath("li[text()[contains(.,'Distance:')]]/strong/text()").extract()[0].strip()
-                l.add_value("imperialdistance", imperialdistance)
-                going = rd.xpath("li[text()[contains(.,'Going:')]]/strong/text()").extract()[0].strip()
-                l.add_value("going", going)
-                
-                #race conds
+                    rc = response.xpath("//p[contains(@id,'raceConditionsText')]")
+                    l.add_value("raceconditions", rc.xpath("/text()"))
+                    l.add_value("prizemoney", rc.xpath("b/preceding-sibling::text()").extract())
+                    l.add_value("pm2", rc.xpath("b[text()[contains(.,'2nd')]]/following-sibling::text()").extract() )
+                    l.add_value("pm3", rc.xpath("b[text()[contains(.,'3rd')]]/following-sibling::text()").extract() )
+                    l.add_value("pm4", rc.xpath("b[text()[contains(.,'4th')]]/following-sibling::text()").extract() )
+                    l.add_value("pm5", rc.xpath("b[text()[contains(.,'5th')]]/following-sibling::text()").extract() )
 
-                rc = response.xpath("//p[contains(@id,'raceConditionsText')]")
-                l.add_value("raceconditions", rc.xpath("/text()"))
-                totalpm = re.search('^.+(?= guaranteed)', rc.extract()[0])
-                if totalpm is not None:
-                    l.add_value("totalpm", totalpm.group(0))
-                l.add_value("pmcurr", 'GBP')
-                l.add_value("pm2", rc.xpath("b[text()[contains(.,'2nd')]]/following-sibling::text()").extract() )
-                l.add_value("pm3", rc.xpath("b[text()[contains(.,'3rd')]]/following-sibling::text()").extract() )
-                l.add_value("pm4", rc.xpath("b[text()[contains(.,'4th')]]/following-sibling::text()").extract() )
-                l.add_value("pm5", rc.xpath("b[text()[contains(.,'5th')]]/following-sibling::text()").extract() )
+                    # TABLE OF RUNNERS
+                    rows = response.xpath("//table[@id='sc_horseCard']/tbody[contains(@id, 'sc_')]")
+                    #for each horse
 
-                # TABLE OF RUNNERS
-                rows = response.xpath("//table[@id='sc_horseCard']/tbody[contains(@id, 'sc_')]")
-                for row in rows:
-                    # cr class
-                    l.add_value("horsenumber",row.select("tr[contains(@class,'cr')]/td[@class='t']/strong/text()").extract())
-                    l.add_value("draw",row.select("tr[contains(@class,'cr')]/td[@class='t']/sup/text()").extract())
-                    l.add_value("horsename",row.select("tr[contains(@class,'cr')]/td[3]/a/b/text()").extract())
-                    horseurl = row.select("tr[contains(@class,'cr')]/td[3]/a/@href").extract()
-                    l.add_value("rphorseid",horseurl[0].replace("&popup=1", "").split("=")[-1])
+                    for row in rows:
+                        # cr class
+                        l.add_value("horsenumber",row.select("tr[contains(@class,'cr')]/td[@class='t']/strong/text()").extract())
+                        l.add_value("draw",row.select("tr[contains(@class,'cr')]/td[@class='t']/sup/text()").extract())
+                        l.add_value("horsename",row.select("tr[contains(@class,'cr')]/td[3]/a/b/text()").extract())
+                        todaysgear = row.select("tr[contains(@class,'cr')]/td[3]/span/text()").extract()
+                        l.add_value("gear", todaysgear)
+                        horseurl = row.select("tr[contains(@class,'cr')]/td[3]/a/@href").extract()
+                        l.add_value("rphorseid",horseurl[0].replace("&popup=1", "").split("=")[-1])
 
-                    l.add_value("hage",row.select("tr[contains(@class,'cr')]/td[4]/text()").extract())
-                    l.add_value("weight",row.select("tr[contains(@class,'cr')]/td[5]/div[1]/text()").extract())
-                    l.add_value("OR",row.select("tr[contains(@class,'cr')]/td[5]/div[2]/text()").extract())
-                    l.add_value("jockeyname",row.select("tr[contains(@class,'cr')]/td[6]/div[1]/a/text()").extract())
-                    l.add_value("trainername",row.select("tr[contains(@class,'cr')]/td[6]/div[2]/a/text()").extract())
-                    #2nd line
-                    l.add_value("diomed",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='diomed']/text()").extract())
-                    l.add_value("spotlight",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='spotlight']/text()").extract())
-                    l.add_value("owner", row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='owners']/a/text()").extract())
-                    ownerurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='owners']/a/@href").extract()
-                    l.add_value("rpownerid", ownerurl[0].replace("&popup=1", "").split("=")[-1])
+                        l.add_value("hage",row.select("tr[contains(@class,'cr')]/td[4]/text()").extract())
+                        actualwt =row.select("tr[contains(@class,'cr')]/td[5]/div[1]/text()").extract()
+                        l.add_value("actualwt",actualwt)
+                        l.add_value("actualwt_dec", imperialweighttokg(actualwt))
+                        l.add_value("OR",row.select("tr[contains(@class,'cr')]/td[5]/div[2]/text()").extract())
+                        l.add_value("TS",row.select("tr[contains(@class,'cr')]/td[7]/text()").extract())
+                        l.add_value("RPR",row.select("tr[contains(@class,'cr')]/td[8]/text()").extract())
 
-                        #previous form
-                    lastrace = row.select("tr/td[contains(@class,'cardItemInfo')]/div[contains(@class,'forms')]")
-                    if "There are no past perfomances on the Racing Post database for this horse" not in lastrace.select("text()").extract(): 
-                        L1date = lastrace.select("table/tr[2]/td[2]/a/text()")
-                        if L1date:
-                            l.add_value("L1date", datetime.strptime(L1date.extract()[0], '%d%b%y'))
-                            L1distgoing = lastrace.select("table/tr[2]/td[3]/b/a/following-sibling::text()[1]").extract()[0]
-                            L1racetype = lastrace.select("table/tr[2]/td[3]/b/following-sibling::text()[1]").extract()[0]
-                        ###need to work on these two
-                            l.add_value("L1distance", getdistance(L1distgoing))
-                            l.add_value("L1goingcode", ''.join( ''.join([ i for i in L1distgoing if not i.isdigit() ])   ).replace(".", "") )
-                            l.add_value("L1racetype",L1racetype)
 
-                            L1carriedwt = lastrace.select("table/tr[2]/td[4]/text()").extract()[0]
-                            l.add_value("L1carriedwt",L1carriedwt)
-                            L1comment = lastrace.select("table/tr[2]/td[5]/a/@title").extract()[0]
-                            l.add_value("L1comment", L1comment)
-                            L1pos = lastrace.select("table/tr[2]/td[5]/b[@class='black']/text()").extract()[0]
-                            l.add_value("L1pos", L1pos)
-                            L1SP = lastrace.select("table/tr[2]/td[5]/a/following-sibling::text()[1]").extract()[0]
-                            l.add_value("L1SP", L1SP)
-                            L1runners = lastrace.select("table/tr[2]/td[5]/b/following-sibling::text()[1]").extract()[0].replace('/', "")
-                            l.add_value("L1runners", L1runners)
-                        # L1ranon = datetime.strptime(lastrace.select("td[2]/a/text()").extract()[0], '%d%b%y')
-                        # l.add_value("L1ranon",L1ranon)
-                    # [u'<div class="forms">\n <p>There are no past perfomances on the Racing Post database for this horse</p></div>']
-                    # L1ranon = datetime.strptime(lastrace.select("td[2]/a/text()").extract()[0], '%d%b%y')
-                    # L1carriedwt = lastrace.select("td[4]/text()").extract()[0]
-                    # L1pos = lastrace.select("td[5]/b[@class='black']/text()").extract()[0]
-                    # L1comment = lastrace.select("td[5]/a/@title").extract()[0]
+                        # l.add_value("currentodds",row.select("tr[contains(@class,'cr')]/td[9]/button/div/div/text()").extract())
+                        l.add_value("jockeyname",row.select("tr[contains(@class,'cr')]/td[6]/div[1]/a/text()").extract())
+                        l.add_value("trainername",row.select("tr[contains(@class,'cr')]/td[6]/div[2]/a/text()").extract())
+                        #2nd line
+                        l.add_value("diomed",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='diomed']/text()").extract())
+                        l.add_value("spotlight",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='spotlight']/text()").extract())
+                        l.add_value("owner", row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='owners']/a/text()").extract())
+                        ownerurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='owners']/a/@href").extract()
+                        l.add_value("rpownerid", ownerurl[0].replace("&popup=1", "").split("=")[-1])
 
-                    # l.add_value("L1ranon",L1ranon)
-                    # l.add_value("L1carriedwt",L1carriedwt)
-                    # l.add_value("L1pos", L1pos)
-                    # l.add_value("L1comment", L1comment)
-                    #PEDIGREES
-                    l.add_value("sire",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[1]/text()").extract())
-                    sireurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[1]/@href").extract()
-                    l.add_value("rpsireid",sireurl[0].replace("&popup=1", "").split("=")[-1])
-                    l.add_value("dam",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[2]/text()").extract())
-                    damurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[2]/@href").extract()
-                    l.add_value("rpdamid",damurl[0].replace("&popup=1", "").split("=")[-1])
-                    l.add_value("damsire",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[3]/text()").extract())
-                    damsireurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[3]/@href").extract()
-                    l.add_value("rpdamsireid",damsireurl[0].replace("&popup=1", "").split("=")[-1])
-            # div class info p text = CLASS ageresrtiction
+                        #current odds
 
-            # TABLE sc_horseCard
-            #horsenumber
-            #horsename
-    
-            #WT 
-            #OR
-            #jockey
-            #trainer
-            #TS
-            #RPR
-            # spotlightComment
-            # diomedComment
-            # button Class Click to bet next div = odds
-            #betting forcast name of horse
+                        #TODO: enumrate based on number of previous runs ADD all data for each race up to 5
+                            #previous form
+                        lastrace = row.select("tr/td[contains(@class,'cardItemInfo')]/div[contains(@class,'forms')]")
+                        # for item, tr in itertools.izip_longest(table_data, response.xpath("//table[@cellspacing=1 and @width='100%']//td[@rowspan=2]/..")):
 
-                yield l.load_item()
+                        # l.add_xpath("Sec%sDBL" % j, "./td[%s]/table/tr/td[2]/text()" % i)
+                        if "There are no past perfomances on the Racing Post database for this horse" not in lastrace.xpath("text()").extract(): 
+                            #positive terms in comments if associated with WINS PLACES NEXT GO!
+                            
+                            #use this to do MAX MIM AVG ad reqyured add to items field
+                            ors = list()
+                            tss = list()
+                            rprs = list()
+                            winningpms = list()  #prizemoneys fix so tha
+                            finishes = dict()
+                            sps = list()
+                            daysoff = dict()   
+                            noraces = lastrace.xpath("count(table/tr[not(@class='noSpace')])").extract()[0]
+                            noraces = int(float(noraces))
+                            todaysdate = l.get_collected_values("racedate")[0]
+                            #TOD decimalize all prizemoneys and get average prizemoney last races
+                            for i in range(2,2+noraces):
+                                # thepos = try_int(lastrace.select("table/tr[%s]/td[5]/b[@class='black']/text()" % i).extract()[0])
+                                #HORSES FAVORITE/HOME TRACK?
+                                l.add_value("L%scoursecode" % str(i-1), lastrace.select("table/tr[%s]/td[3]/b[@class='black']/a/text()" % i).extract()[0])
+                                directionpatt = re.compile("^.*(left|right)-handed.*")
+                                thisdirection = lastrace.select("table/tr[%s]/td[3]/b[@class='black']/a/@title" % i).extract()
+                                if thisdirection and re.match(directionpatt, thisdirection[0]):
+                                    l.add_value("L%sdirection" % str(i-1), re.match(directionpatt, thisdirection[0]).group(1))      
+                                l.add_value("L%sracedate" % str(i-1), datetime.strptime(lastrace.select("table/tr[%s]/td[2]/a/text()" % i).extract()[0], '%d%b%y'))
+                                l.add_value("L%scomment" % str(i-1), lastrace.select("table/tr[%s]/td[5]/a/@title" % i).extract()[0])
+                                l.add_value("L%spos" % str(i-1), try_int(lastrace.select("table/tr[%s]/td[5]/b[@class='black']/text()" % i).extract()[0]))
+                                thispos = l.get_collected_values("L%spos" % str(i-1))[0]
+                                thisprizemoney = l.get_collected_values("prizemoney")[0]
+                                thisgearSP = lastrace.select("table/tr[%s]/td[5]/a/following-sibling::text()[1]" % i).extract()[0].strip()
+                                thisgear, thissp = parseL1gearSP(thisgearSP)
+                                # l.add_value("L%ssp" % str(i-1), decimalizeodds(thissp))
+                                #non L1 sps, finishes go to dict- NOT Gear (Career)
+                                if thissp:
+                                    sps.append(decimalizeodds(thissp))
+                                finishes["L%spos" % str(i-1)] = thispos #used for form calculations
+                                thisdate = l.get_collected_values("L%sracedate" % str(i-1))[0]
+                                daysoff["L%s" % str(i-1)] = (todaysdate-thisdate).days
+                                lastracetypepm = lastrace.xpath("table/tr[%s]/td[3]/b/following-sibling::text()[1]" % i).extract()[0].strip()
+                                l.add_value("L%sracetype" % str(i-1), re.match(r'^([A-Za-z0-9]*)\s*', lastracetypepm).group(1))
+                                pmpatt = re.compile("^(.*)\s+(\d+)[kK]")
+                                pmmatch = re.match(pmpatt, lastracetypepm)
+                                if pmmatch:
+                                    l.add_value("L%sprize" % str(i-1), pmmatch.group(2))
+                                # lastracepm = lastracetyperacepm.split(" ")[1].replace("k", "").replace("K", "")
+                                lastracepm = l.get_collected_values("L%sprize" % str(i-1))
+                                if lastracepm and thispos == '1':
+                                    #add pm from get collected values
+                                    winningpms.append(int(lastracepm[0])*1000)
+                                #TODAY vs. L1 comparisons here:
+                                if i == 2:
+                                    l.add_value("L%ssp" % str(i-1), decimalizeodds(thissp))
+                                    l.add_value("L%sgear" % str(i-1), thisgear)
+                                    if lastracepm:
+                                        l.add_value("L%sprizemoneychange" % str(i-1), float(thisprizemoney) - float(int(lastracepm[0])*1000) )
+                                    l.add_value("dayssincelastrunL1", (todaysdate-thisdate).days)
+                                    l.add_value("L1gearchange", True if thisgear == todaysgear else False)
+
+                                if thispos: 
+                                    finishes["L%spos" % str(i-1)] = thispos
+                                if i> 2:
+                                    l.add_value("L%scommentN1" % str(i-1), finishes["L%spos" % str(i-2)])
+
+                            #now compute averages for last runs
+                            #WIN PLACE record this form go to database(also depends on racetype)
+                            l.add_value("form", ''.join(['{}'.format(v) for k,v in sorted(finishes.iteritems())] ) )
+                            l.add_value("avgspL6", round( numpy.mean(sps), 2))
+                            l.add_value("avgpmL6", round( numpy.mean(winningpms), 2))
+                            
+                            # l.add_value("recentavgpm", round( numpy.mean(winningpms.values()), 2)) 
+
+                            # L1date = lastrace.select("table/tr[2]/td[2]/a/text()")
+                            # if L1date:
+                            #     l.add_value("L1date", datetime.strptime(L1date.extract()[0], '%d%b%y'))
+                            #     L1distgoing = lastrace.select("table/tr[2]/td[3]/b/a/following-sibling::text()[1]").extract()[0]
+                            #     L1racetype = lastrace.select("table/tr[2]/td[3]/b/following-sibling::text()[1]").extract()[0]
+                            # ###need to work on these two
+                            #     l.add_value("L1distance", getdistance(L1distgoing))
+                            #     l.add_value("L1goingcode", ''.join( ''.join([ i for i in L1distgoing if not i.isdigit() ])   ).replace(".", "") )
+                            #     l.add_value("L1racetype",L1racetype)
+
+                            #     L1carriedwt = lastrace.select("table/tr[2]/td[4]/text()").extract()[0]
+                            #     l.add_value("L1carriedwt",L1carriedwt)
+                            #     l.add_value("L1carriedwt_kg",   imperialweighttokg(L1carriedwt))
+                            #     L1comment = lastrace.select("table/tr[2]/td[5]/a/@title").extract()[0]
+                            #     l.add_value("L1comment", L1comment)
+                            #     L1pos = try_int(lastrace.select("table/tr[2]/td[5]/b[@class='black']/text()").extract()[0])
+                            #     l.add_value("L1pos", L1pos)
+                            #     L1gearSP = lastrace.select("table/tr[2]/td[5]/a/following-sibling::text()[1]").extract()[0].strip()
+                            #     L1gear, L1sp = parseL1gearSP(L1gearSP)
+                            #     l.add_value("L1sp", L1sp)
+                            #     l.add_value("L1gear", L1gear)
+                            #     l.add_value("L1gearchange", True if L1gear == gear else False) 
+                            #     l.add_value("L1sp_dec", decimalizeodds(L1sp))
+                            #     l.add_value("L1bf", isbeatenfavorite(L1sp, L1pos))
+                            #     L1LBW = lastrace.select("table/tr[2]/td[5]/a/text()")
+                            #     l.add_value("L1LBW", sanitizelbw(L1LBW.extract()[0].split(" ")[0].replace('(', "")))
+                            #     L1runners = lastrace.select("table/tr[2]/td[5]/b/following-sibling::text()[1]").extract()[0].replace('/', "")
+                            #     l.add_value("L1runners", L1runners)
+
+
+                                #ASSESSMENT OF L2, L3, L4, L5?
+                        #TODO LBW decimalize L1pmz LOOK FOR CLASS DROPS L1, L1-L3 
+                        # L2, L3 L4 L5 LBW pos odds (calculate in market), OR TS jumps avg RPR, Class 
+
+
+                        #PEDIGREES
+                        l.add_value("sire",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[1]/text()").extract())
+                        sireurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[1]/@href").extract()
+                        l.add_value("rpsireid",sireurl[0].replace("&popup=1", "").split("=")[-1])
+                        l.add_value("dam",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[2]/text()").extract())
+                        damurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[2]/@href").extract()
+                        l.add_value("rpdamid",damurl[0].replace("&popup=1", "").split("=")[-1])
+                        l.add_value("damsire",row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[3]/text()").extract())
+                        damsireurl = row.select("tr/td[contains(@class,'cardItemInfo')]/p[@class='pedigrees']/a[3]/@href").extract()
+                        l.add_value("rpdamsireid",damsireurl[0].replace("&popup=1", "").split("=")[-1])
+                # div class info p text = CLASS ageresrtiction
+                        pprint.pprint(l.load_item())
+                # TABLE sc_horseCard
+                #horsenumber
+                #horsename
+                #gear
+                #WT 
+                #OR
+                #jockey
+                #trainer
+                #TS
+                #RPR
+                # spotlightComment
+                # diomedComment
+                # button Class Click to bet next div = odds
+                #betting forcast name of horse
+                    #does population here
+                        i = l.load_item()
+                        items.append(i)
+                # pprint.pprint(table_data)
+                        yield i
+            # yield l.load_item()
+                    # return items
 
                 
 
@@ -256,7 +492,12 @@ class RpostSpider(scrapy.Spider):
             d = response.url.split("_")
             l.add_value('racedate', ''.join([ i for i in d[-2] if i.isdigit()]))
             l.add_value('rpraceid', ''.join([ i for i in d[-1] if i.isdigit()]))
-            l.add_value('racecourse', response.xpath('//title').extract()[0].split('|')[0].strip().split("At ")[-1])
+            racecourse = response.xpath('//title').extract()[0].split('|')[0].strip().split("At ")[-1]
+            l.add_value('racecourse', racecourse)
+            if u'(AW)' in racecouse: 
+                l.add_value('surface', 'AWT')
+            else:
+                l.add_value('surface', 'Turf') 
             l.add_value('racetime', response.xpath('//title/text()').extract()[0].split('|')[0].strip().split(" Race")[0].replace("Results From The ", ""))
             # l.add_value('racename', response.xpath("//h3[@class='clearfix']/text()").extract()[0].strip())
             #race number?
@@ -264,7 +505,7 @@ class RpostSpider(scrapy.Spider):
 
             racedetails = response.xpath("//div[@class='leftColBig']/ul/li/text()")
             l.add_value("raceclass", racedetails.extract()[0].split('\n')[1].replace("(", '').replace(")", "").strip())
-            l.add_value("ratingband", racedetails.extract()[0].split('\n')[2].split(",")[0].replace("(", "").replace(")", "").strip())
+            l.add_value("raceratingspan", racedetails.extract()[0].split('\n')[2].split(",")[0].replace("(", "").replace(")", "").strip())
             l.add_value("agerestriction", racedetails.extract()[0].split('\n')[2].split(")")[0].split(",")[-1].replace("(", "").strip())
             l.add_value("imperialdistance", racedetails.extract()[0].split('\n')[2].split(" ")[-1].replace("(", "").replace(")", ""))
             # item['racedate'] = ''.join([ i for i in d[-2] if i.isdigit()]) #yyyymmdd
@@ -298,7 +539,7 @@ class RpostSpider(scrapy.Spider):
             for k, prize in enumerate(sorted(pms, reverse=True)):
                 l.add_value('pm'+ str(k+1), prize)
                 # prized[str(i+1)] = prize
-            l.add_value('totalpm', sum(pms))
+            l.add_value('prizemoney', sum(pms))
 
             # #raceinfo
             ri = response.xpath("//div[@class='raceInfo']")
@@ -326,7 +567,7 @@ class RpostSpider(scrapy.Spider):
             #     horse_id
             #     horsename
             #     horsecountry
-            #     sp
+            #     sp = winodds
             #     age
             #     weight
             #     trainername

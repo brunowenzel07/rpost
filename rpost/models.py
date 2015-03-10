@@ -25,13 +25,14 @@ ModelBase = declarative_base()
 
 
 
-class Owner(ModelBase):
-    __tablename__ = "owner"
+class GBOwner(ModelBase):
+    __tablename__ = "gb_owner"
     __tableargs__ = ( CheckConstraint('Homecountry in ("HKG", "SIN", "AUS", "NZL", "RSA". "ENG", "IRE", "DUB", "IRE", "SCO", "MAC")'))
     id = Column(Integer, primary_key=True)
     Name = Column("name", String(255), unique=True)
     Homecountry = Column('homecountry', String(3), nullable=False)
-    runners = relationship("HKRunner", backref="owner")
+    rpownerid = Column("rpownerid", Integer)
+    gbrunners = relationship("GBRunner", backref="owner")
     # UniqueConstraint('name', name='OwnerName_uidx')
 
 
@@ -39,23 +40,31 @@ class Going(ModelBase):
     __tablename__ = "going"
     id = Column(Integer, primary_key=True)
     Name = Column("name", String(255), unique=True)
-    races = relationship("GBRace", backref="going")
+    gbraces = relationship("GBRace", backref="going")
     # UniqueConstraint('name', name='GoingName_uidx')
 
-class Raceclass(ModelBase):
-    __tablename__ = "raceclass"
+class GBRaceclass(ModelBase):
+    __tablename__ = "gb_raceclass"
     id = Column(Integer, primary_key=True)
     Name = Column("name", String(255), unique=True)
-    races = relationship("HKRace", backref="raceclass")
+    gbraces = relationship("GBRace", backref="gb_raceclass")
     # UniqueConstraint('name', name='RaceClassName_uidx')
 
-class Distance(ModelBase):
-    __tablename__= "hk_distance"
+class GBRacetype(ModelBase):
+    __tablename__ = "gb_racetype"
     id = Column(Integer, primary_key=True)
-    MetricName = Column("metricname", Integer, unique=True)
+    Name = Column("name", String(255), unique=True)
+    gbraces = relationship("GBRace", backref="gb_raceclass")
+
+class GBDistance(ModelBase):
+    __tablename__= "gb_distance"
+    id = Column(Integer, primary_key=True)
+    ImperialName = Column("imperialname", String, unique=True)
+    MetricName = Column("metricname", Integer)
     Miles = Column("miles", Float)
     Furlongs = Column("furlongs", Integer)
-    races = relationship("HKRace", backref="hk_distance") 
+    Yards = Column("Yards", Integer)
+    gbraces = relationship("GBRace", backref="gb_distance") 
     # UniqueConstraint('metricname', name='HKDistance_MetricName_uidx')
 
 class Railtype(ModelBase):
@@ -65,32 +74,34 @@ class Railtype(ModelBase):
     races = relationship("HKRace", backref="hk_railtype")
     # UniqueConstraint('name', name='HKRailType_Name_uidx')
 
-class Horse(ModelBase):
-    __tablename__ = "horse"
+class GBHorse(ModelBase):
+    __tablename__ = "gb_horse"
     __tableargs__ = ( 
-
+        UniqueConstraint('publicraceindex', name='GBHorse_PublicRaceIndex_uidx'),
     CheckConstraint('Homecountry in ("HKG", "SIN", "AUS", "NZL", "RSA". "ENG", "IRE", "DUB", "IRE", "SCO", "MAC")')
         )
     id = Column(Integer, primary_key=True)
-    Code = Column("code", String(6), nullable=False, unique=True)
+    PublicRaceIndex = Column('publicraceindex', String, nullable=False, unique=True) # horsename sire dam
     Name = Column("name", String(255), nullable=False)
     Sex = Column("sex", String(2), nullable=True)
     Homecountry = Column('homecountry', String(3), nullable=False)
-    ImportType = Column("importtype", String(10))
     SireName = Column("sirename", String(255))
     DamName = Column("damname", String(255))
     DamSireName = Column("damsirename", String(255))
     SalePriceYearling = Column("salepriceyearling", Float)
     YearofBirth = Column("yearofbirth", Integer)
     DateofBirth = Column(Date, nullable=True)
+    rphorseid = Column("rphorseid", Integer)
+    rpsireid = Column("rpsireid", Integer)
+    rpdamid = Column("rpdamid", Integer)
+    rpdamsireid = Column("rpdamsireid", Integer)
     gbrunners = relationship("GBRunner", backref="horse")
     # hkrunners = relationship("HKRunner", backref="horse")
-    # UniqueConstraint('name', 'code', 'homecountry', name='Horsecodehomecountry_uidx')
 
 
 
 class Jockey(ModelBase):
-    __tablename__ = "jockey"
+    __tablename__ = "gb_jockey"
     __tableargs__ = ( CheckConstraint('Homecountry in ("HKG", "SIN", "AUS", "NZL", "RSA". "GB", "IRE", "DUB", "IRE", "MAC")'))
     id = Column(Integer, primary_key=True)
     Name = Column("name", String(100), unique=True)
@@ -120,6 +131,7 @@ class Racecourse(ModelBase):
 class GBRace(ModelBase):
     __tablename__ = "gb_race"
     __tableargs__ = ( 
+        CheckConstraint('Prizecurrency in ("EUR", "GBP")'),
         UniqueConstraint('publicraceindex', name='HKRace_PublicRaceIndex_uidx'),
         )
     id = Column(Integer, primary_key=True)
@@ -127,102 +139,35 @@ class GBRace(ModelBase):
     racecourse_id = Column("racecourseid", Integer, ForeignKey("racecourse.id"))
     Name = Column('name', String(255), nullable=True)
     RaceDate = Column('racedate', Date, nullable=True)
+    RaceConditions = Column('raceconditions', String(255), nullable=True)
     RaceDateTime = Column('racedatetime', String, nullable=True)
     RaceNumber = Column('racenumber', Integer, nullable=True)
     PublicRaceIndex = Column('publicraceindex', String, nullable=False, unique=True)
     going_id = Column("goingid", Integer, ForeignKey("going.id"))
-    raceclass_id = Column("racetypeid", Integer, ForeignKey("gb_racetype.id"))
-    raceclass_id = Column("raceclassid", Integer, ForeignKey("hk_raceclass.id"))
-    hk_distance_id = Column("distanceid", Integer, ForeignKey("hk_distance.id"))
-    hk_railtype_id = Column("railtypeid", Integer, ForeignKey("hk_railtype.id"))
-    hk_dividend_id = Column("hkdividendid", Integer, ForeignKey("hk_dividend.id"))
+    gb_racetype_id = Column("racetypeid", Integer, ForeignKey("gb_racetype.id"))
+    gb_raceclass_id = Column("raceclassid", Integer, ForeignKey("gb_raceclass.id"))
+    gb_distance_id = Column("distanceid", Integer, ForeignKey("gb_distance.id"))
+    gb_railtype_id = Column("railtypeid", Integer, ForeignKey("gb_railtype.id"))
+    gb_dividend_id = Column("hkdividendid", Integer, ForeignKey("hk_dividend.id"))
     Raceratingspan = Column("raceratingspan", String)
+    Agerestriction = Column("agerestriction", String)
     Prizemoney = Column("prizemoney", Integer)
+    Prizecurrency =  Column("prizecurrency", String)
     Surface = Column('surface', String)
     Dayofweek = Column('dayofweek', String)
-    Isnight = Column("isnight", Boolean)       #from raceday
-    NoSectionals = Column('nosectionals', Integer)
-    Inraceimage = Column('inraceimage', BYTEA, nullable=True)
-    runners = relationship("HKRunner", backref="hk_race") #RA is Parent of RU
+    Isnight = Column("isnight", Boolean) 
+    Racereport Column("racereport", String)
+    Paceinfo = Column("paceinfo", String)
+    FinishTime = Column("finishtime", Float)
+
+    runners = relationship("GBRunner", backref="gb_race") #RA is Parent of RU
     # UniqueConstraint('publicraceindex', name='HKRace_PublicRaceIndex_uidx')
     # odds = relationship("HKOdds", backref="hk_race")
 
-###THIS IS AN INTERNAL TABLE
-class HKRaceResults(ModelBase):
-    __tablename__ = "_hk_race_results"
-    __tableargs__ = ( 
-        CheckConstraint('RacecourseCode in ("HV", "ST")'), {'autoload': True},
-        UniqueConstraint('publicraceindex', name='HKRaceResults_PublicRaceIndex_uidx')
-
-        )
-    id = Column(Integer, primary_key=True)
-    Url = Column('url', String)
-    RacecourseCode = Column('racecoursecode', String, nullable=False)
-    Name = Column('name', String(255), nullable=True)
-    RaceDate = Column('racedate', Date, nullable=True)
-    RaceDateTime = Column('racedatetime', String, nullable=True)
-    RaceNumber = Column('racenumber', Integer, nullable=False)
-    PublicRaceIndex = Column('publicraceindex', String, nullable=False, unique=True)
-    RaceIndex = Column('raceindex', String, nullable=True)
-    IncidentReport = Column('incidentreport', String, nullable=True)
-    hk_going_id = Column("goingid", Integer, ForeignKey("hk_going.id"))
-    hk_raceclass_id = Column("raceclassid", Integer, ForeignKey("hk_raceclass.id"))
-    hk_distance_id = Column("distanceid", Integer, ForeignKey("hk_distance.id"))
-    hk_railtype_id = Column("railtypeid", Integer, ForeignKey("hk_railtype.id"))
-    hk_dividend_id = Column("hkdividendid", Integer, ForeignKey("hk_dividend.id"))
-    Raceratingspan = Column("raceratingspan", String)
-    Prizemoney = Column("prizemoney", Integer)
-    Surface = Column('surface', String)
-    Dayofweek = Column('dayofweek', String)
-    Isnight = Column("isnight", Boolean)       #from raceday
-    NoSectionals = Column('nosectionals', Integer)
-    Inraceimage = Column('inraceimage', BYTEA, nullable=True)
-
-
-    def __repr__(self):
-        return "HKRace(Racecoursecode='%s', Name= '%s', RaceDate='%s', RaceNumber='%d', RaceIndex='%s',Prizemoney='%s')" % \
-        (self.RacecourseCode, self.Name, self.RaceDate, self.RaceNumber, self.RaceIndex, self.RaceIndex, self.Prizemoney)  
-#parent of race
-class HKDividend(ModelBase):
-    __tablename__ = "hk_dividend"
-    __tableargs__ = ( 
-        UniqueConstraint('publicraceindex', name='HKDividend_PublicRaceIndex_uidx')
-    )
-
-
-    id = Column(Integer, primary_key=True)
-    RacecourseCode = Column('racecoursecode', String, nullable=False)
-    RaceDate = Column('racedate', String, nullable=False)
-    RaceNumber = Column('racenumber', String, nullable=False)
-    PublicRaceIndex = Column('publicraceindex', String, nullable=False, unique=True)
-    WinDiv= Column("windiv", Float, nullable=False)
-    Place1Div = Column("place1div",Float, nullable=True)
-    Place2Div = Column("place2div", Float, nullable=True)
-    Place3Div = Column("place3div", Float, nullable=True)
-    QNDiv = Column("qndiv", Float, nullable=True)
-    QP12Div = Column("qp12div", Float, nullable=True)
-    QP13Div = Column("qp13div", Float, nullable=True)
-    QP23Div = Column("qp23div", Float, nullable=True)
-    TierceDiv = Column("tiercediv", Float, nullable=True)
-    TrioDiv = Column("triodiv", Float, nullable=True)
-    FirstfourDiv = Column("firstfourdiv", Float, nullable=True)
-    #optionals FirstFourDiv
-    QuartetDiv = Column("quartetdiv", Float)
-    ThisDouble11Div = Column("thisdouble11div", Float)
-    ThisDouble12Div = Column("thisdouble12div", Float)
-    Treble111Div = Column("treble111div", Float)
-    Treble112Div = Column("treble112div",Float)
-    ThisDoubleTrioDiv = Column("thisdoubletriodiv", Float)
-    TripleTrio111Div = Column("tripletrio111div", Float)
-    TripleTrio112Div = Column("tripletrio112div", Float)
-    SixUpDiv = Column("sixupdiv", Float)
-    SixUpBonusDiv = Column("sixupbonusdiv", Float)
-    race = relationship("HKRace", uselist=False, backref="hk_dividend")
-    # UniqueConstraint('racecoursecode', 'racedate','racenumber', name='HKDividendRCCodeDateRaceNumber_uidx') 
 
 #CHILD FOR h j t o g
-class HKRunner(ModelBase):
-    __tablename__ = "hk_runner"
+class GBRunner(ModelBase):
+    __tablename__ = "gb_runner"
 
     __tableargs__ = ( 
         UniqueConstraint('publicraceindex', name='HKRunner_PublicRaceIndex_uidx')
@@ -230,111 +175,54 @@ class HKRunner(ModelBase):
 
     id = Column(Integer, primary_key=True)
     PublicRaceIndex = Column('publicraceindex', String, nullable=False, unique=True)
-    isScratched = Column('isscratched', Boolean)
-    hk_race_id = Column("raceid", Integer, ForeignKey("hk_race.id"))
+    # isScratched = Column('isscratched', Boolean)
+    gb_race_id = Column("raceid", Integer, ForeignKey("gb_race.id"))
     horse_id = Column("horseid", Integer, ForeignKey("horse.id"))
-    hk_gear_id = Column("gearid", Integer, ForeignKey("hk_gear.id"))
+    gb_gear_id = Column("gearid", Integer, ForeignKey("gb_gear.id"))
     owner_id = Column("ownerid", Integer, ForeignKey("owner.id"))
     jockey_id =Column("jockeyid", Integer, ForeignKey("jockey.id"))
     trainer_id =Column("trainerid", Integer, ForeignKey("trainer.id"))
+    HorseNumber= Column('horsenumber', String, nullable=True)
     PlaceNum = Column('placenum', Integer)
     Place = Column('place', String)
-    HorseNumber= Column('horsenumber', String, nullable=True)
     Jockey= Column('jockey', String, nullable=True)
     JockeyWtOver = Column('jockeywtover', Integer, nullable=True)
     Trainer= Column('trainer', String, nullable=True)
     ActualWt= Column('actualWt', Integer, nullable=True)
-    DeclarHorseWt= Column('declarhorsewt', Integer, nullable=True)
-    HorseWtDeclarChange = Column('horsewtdeclarchange', Integer, nullable=True)
-    HorseWtpc = Column('horsewtpc', Float, nullable=True)
+    OR= Column('OR', Integer, nullable=True)
+    TS= Column('TS', Integer, nullable=True)
+    RPR= Column('RPR', Integer, nullable=True)
+    Diomed= Column('diomed', String, nullable=True)
+    Spotlight= Column('spotlight', String, nullable=True)
     Draw= Column('draw', Integer, nullable=True)
     LBW= Column('lbw', Float, nullable=True)
-    Last6runs = Column('last6runs', String(30), nullable=True)
-    Priority = Column('priority', String(10), nullable=True)
-    RunningPosition= Column('runningposition', String, nullable=True)
-    Rating =Column('rating', Integer, nullable=True)
     RatingChangeL1 = Column('ratingchangeL1', Integer, nullable=True)
     SeasonStakes = Column('seasonStakes', Integer, nullable=True)
     Age = Column('age', Integer, nullable=True)  #from raceday
-    WFA = Column('wfa', Integer, nullable=True)
-    isRanOn = Column('isranon', Boolean, nullable=True)
-    Sec1DBL = Column('sec1dbl', Float, nullable=True)
-    Sec2DBL = Column('sec2dbl', Float, nullable=True)
-    Sec3DBL = Column('sec3dblL', Float, nullable=True)
-    Sec4DBL = Column('sec4dbl', Float, nullable=True)
-    Sec5DBL = Column('sec5dbl', Float, nullable=True)
-    Sec6DBL = Column('sec6dbl', Float, nullable=True)
-    FinishTime= Column('finishtime', Time, nullable=True)  #e.g. 1.49.08 --> '00:01:49.08' hhmmss.nn always < 5mins
-    Sec1Time = Column('sec1time', Time, nullable=True)
-    Sec2Time = Column('sec2time', Time, nullable=True)
-    Sec3Time = Column('sec3time', Time, nullable=True)
-    Sec4Time = Column('sec4time', Time, nullable=True)
-    Sec5Time = Column('sec5time', Time, nullable=True)
-    Sec6Time = Column('sec6time', Time, nullable=True)
     WinOdds= Column('winodds', Float, nullable=True)
     Horseprize = Column('horseprize',Float, nullable=True)
     HorseReport = Column('horsereport', String, nullable=True)
     HorseColors = Column('horsecolors', BYTEA, nullable=True)
-    odds = relationship("HKOdds", backref="hk_runner")
+    gbodds = relationship("GBOdds", backref="gb_runner")
 
-
-
-#temp table if RES and RDAY separate
-class HKRunnerResults(ModelBase):
-    __tablename__ = "_hk_runner_results"
-
-    __tableargs__ = ( 
-        UniqueConstraint('publicraceindex', name='HKRunnerResults_PublicRaceIndex_uidx')
-    )
+class FormStats(ModelBase):
+    __tablename__ = "gb_formstats"
 
     id = Column(Integer, primary_key=True)
-    PublicRaceIndex = Column('publicraceindex', String, nullable=False, unique=True)
-    isScratched = Column('isscratched', Boolean)
-    hk_race_id = Column("raceid", Integer, ForeignKey("hk_race.id"))
-    horse_id = Column("horseid", Integer, ForeignKey("horse.id"))
-    hk_gear_id = Column("gearid", Integer, ForeignKey("hk_gear.id"))
-    owner_id = Column("ownerid", Integer, ForeignKey("owner.id"))
-    jockey_id =Column("jockeyid", Integer, ForeignKey("jockey.id"))
-    trainer_id =Column("trainerid", Integer, ForeignKey("trainer.id"))
-    PlaceNum = Column('placenum', Integer)
-    Place = Column('place', String)
-    HorseNumber= Column('horsenumber', String, nullable=True)
-    Jockey= Column('jockey', String, nullable=True)
-    JockeyWtOver = Column('jockeywtover', Integer, nullable=True)
-    Trainer= Column('trainer', String, nullable=True)
-    ActualWt= Column('actualWt', Integer, nullable=True)
-    DeclarHorseWt= Column('declarhorsewt', Integer, nullable=True)
-    HorseWtDeclarChange = Column('horsewtdeclarchange', Integer, nullable=True)
-    HorseWtpc = Column('horsewtpc', Float, nullable=True)
-    Draw= Column('draw', Integer, nullable=True)
-    LBW= Column('lbw', Float, nullable=True)
-    Last6runs = Column('last6runs', String(30), nullable=True)
-    Priority = Column('priority', String(10), nullable=True)
-    RunningPosition= Column('runningposition', String, nullable=True)
-    Rating =Column('rating', Integer, nullable=True)
-    RatingChangeL1 = Column('ratingchangeL1', Integer, nullable=True)
-    SeasonStakes = Column('seasonStakes', Integer, nullable=True)
-    Age = Column('age', Integer, nullable=True)  #from raceday
-    WFA = Column('wfa', Integer, nullable=True)
-    isRanOn = Column('isranon', Boolean, nullable=True)
-    Sec1DBL = Column('sec1dbl', Float, nullable=True)
-    Sec2DBL = Column('sec2dbl', Float, nullable=True)
-    Sec3DBL = Column('sec3dblL', Float, nullable=True)
-    Sec4DBL = Column('sec4dbl', Float, nullable=True)
-    Sec5DBL = Column('sec5dbl', Float, nullable=True)
-    Sec6DBL = Column('sec6dbl', Float, nullable=True)
-    FinishTime= Column('finishtime', Time, nullable=True)  #e.g. 1.49.08 --> '00:01:49.08' hhmmss.nn always < 5mins
-    Sec1Time = Column('sec1time', Time, nullable=True)
-    Sec2Time = Column('sec2time', Time, nullable=True)
-    Sec3Time = Column('sec3time', Time, nullable=True)
-    Sec4Time = Column('sec4time', Time, nullable=True)
-    Sec5Time = Column('sec5time', Time, nullable=True)
-    Sec6Time = Column('sec6time', Time, nullable=True)
-    WinOdds= Column('winodds', Float, nullable=True)
-    Horseprize = Column('horseprize',Float, nullable=True)
-    HorseReport = Column('horsereport', String, nullable=True)
-    HorseColors = Column('horsecolors', BYTEA, nullable=True)
-    # odds = relationship("HKOdds", backref="hk_runner_results")
+    gb_runner_id = Column("gbrunnerid", Integer, ForeignKey("gb_runner.id"))
+    L1RaceDate = Column('racedate', Date, nullable=True)
+    DaysSinceLastRun = Column('dayssincelastrun', Integer)
+    L1Distance = Column('L1distanceid', Integer, ForeignKey("gb_distance.id"))
+    L1DistanceDiffFurl = Column('L1distancedifffurl', Float)
+    L1CarriedWt= Column('L1carriedwt', String)
+    L1WeightDiff = Column('L1weightdiff', Float)
+    L1Comment = Column('L1comment', String)
+    L1SP = Column('L1sp', String)
+    L1BF = Column('L1bf', Boolean)
+    L1gear = Column('L1gearid', Integer, ForeignKey("gb_gear.id"))
+    #in monet last three
+
+
 #OTHER TABLES
 
 # class RaceStats(ModelBase):
@@ -416,19 +304,18 @@ class HKRunnerResults(ModelBase):
 #market stats
 
 #CHILD TO RUNNER MANY TO ONE
-class HKOdds(ModelBase):
-    __tablename__ = "hk_odds"
+class GBOdds(ModelBase):
+    __tablename__ = "gb_odds"
     __tableargs__ = ( 
         UniqueConstraint('raceid', 'horsenumber','updatedate', 'updatetime', name='HKOdds_RaceidHorseNoUpdateDateTime_uidx')
     )
 
     id = Column(Integer, primary_key=True)
     Horsenumber = Column("horsenumber", Integer, nullable=False)
-    Updatedate = Column("updatedate", Date, nullable=False)
-    Updatetime = Column("updaettime",Time, nullable=False)
+    Updatedatetime = Column("updatedatetime", Datetime, nullable=False)
     Winodds = Column("winodds", Float)
     Placeodds = Column("placeodds", Float)
-    Runnerid = Column("hk_runnerid", Integer, ForeignKey("hk_runner.id"))
+    Runnerid = Column("gb_runnerid", Integer, ForeignKey("gb_runner.id"))
     # Horseid = Column(Integer, ForeignKey("horse.id"))
     # UniqueConstraint('raceid', 'horsenumber', 'updatedate', 'updatetime', name='HKOdds_RaceidHorseNoUpdateDateTime_uidx')
     # 1:M race:HKodds
