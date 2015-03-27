@@ -4,8 +4,12 @@
 #
 # See documentation in:
 # http://doc.scrapy.org/en/latest/topics/items.html
-
 import scrapy
+from scrapy.contrib.loader import ItemLoader
+from scrapy.contrib.loader.processor import TakeFirst, Compose, Join, MapCompose
+import unicodedata
+
+
 
 #http://www.racingpost.com/horses/result_home.sd?race_id=618500&r_date=2015-02-27&popup=yes#results_top_tabs=re_&results_bottom_tabs=ANALYSIS
 class RpostResultsItem(scrapy.Item):
@@ -43,6 +47,7 @@ class RpostResultsItem(scrapy.Item):
     position=scrapy.Field()
     lbw=scrapy.Field()
     rphorseid=scrapy.Field()
+    rphorseurl=scrapy.Field()
     horsename=scrapy.Field()
     horsenumber = scrapy.Field()
     draw = scrapy.Field()
@@ -51,9 +56,9 @@ class RpostResultsItem(scrapy.Item):
     actualwt=scrapy.Field()
     actualwt_dec=scrapy.Field()
     trainername=scrapy.Field()
-    OR = scrapy.Field()
-    TS= scrapy.Field()
-    RPR=scrapy.Field()
+    rpOR = scrapy.Field()
+    rpTS= scrapy.Field()
+    rpRPR=scrapy.Field()
     jockeyname=scrapy.Field()
     #ANALYSIS MUST BE LOGGED IN!!
     commentText=scrapy.Field()
@@ -146,3 +151,7 @@ class RpostResultsItem(scrapy.Item):
     currentodds = scrapy.Field()
     L1prizemoneychange = scrapy.Field()
     avgpmL6 = scrapy.Field()
+
+class RPostItemsLoader(ItemLoader):
+    default_item_class = RpostResultsItem
+    default_output_processor = Compose(TakeFirst(), unicode, unicode.strip)

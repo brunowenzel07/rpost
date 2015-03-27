@@ -5,7 +5,11 @@ from scrapy.http import Request, FormRequest
 from scrapy import log
 import random
 import re
-import datetime
+from datetime import datetime
+from rpost.items import RPostItemsLoader
+
+
+
 
 # URL of container for login page.
 login_container_URL = u'http://www.racingpost.com/modal_dialog/container.sd?modal=false&modalType=login&layout=Home&protoSecure=0&from=header&senderUrl=%s&random=%d' % (u'http%3A//www.racingpost.com/', random.random()*10000000000000000)
@@ -95,6 +99,7 @@ class RPFullResult(CrawlSpider):
             return []
         return [Request(url = self.fullResultMainURL, callback = self.parse_full_result_main_page),]
 
+    ## RACEDATE PAGE get full result pages, each is a race    
     def parse_full_result_main_page(self, response):
         if not response:
             log.msg(u'Error. Full result main page is empty.', logLevel = log.ERROR)
@@ -108,10 +113,44 @@ class RPFullResult(CrawlSpider):
             link = u'http://%s%s' % (self.allowed_domains[0], link)
             reqs.append(Request(url = link, callback = self.parse_full_result_home))
         return reqs
-
+    ##parse races
     def parse_full_result_home(self, response):
         if not response:
             log.msg(u'Error. Full result home page is empty.', logLevel = log.ERROR)
             return []
-        f = open(u'result', 'w')
-        f.write(response.body)
+        #PARSE RACE TABLE DATA HERE
+        #date, raceid from URL
+        l = RPostItemsLoader()
+        racedatematch = re.match(r'.*r_date=(\d\d\d\d-\d\d-\d\d)&.*', response.url)
+        if racedatematch:
+            l.add_value('racedate', datetime.strptime(racedatematch.group(1), "%Y-%M-%d") )
+        l.add_value('rpraceid',  re.match(r'.*race_id=(\d+).*', response.url).group(1))
+
+        # //text()[preceding-sibling::span[1] = 'Heading4']
+        l.add_value('racecourse', response.xpath("//div[@class='leftColBig']/h1/text()[following-sibling::br]").extract()[0])
+        # rc.xpath("b/preceding-sibling::text()").extract())
+
+        l.add_value('racetime', response.xpath("//div[@class='leftColBig']/h3[@class='clearfix']/following-sibling::a/text()"))
+        l.add_value('racename', response.xpath("//div[@class='leftColBig']/h3[@class='clearfix'][2]/text()"))
+        racedetails = response.xpath("//div[@class='leftColBig']/ul")
+        l.add_value('racereport', response.xpath("//div[@id='ANALYSIS']/text()")) 
+        #first li  (Class 5)   (4yo+)   2m1f Good 9 hdles
+        #second li pm £2,737.60, £798.00, £399.20
+        base_item = l.load_item()
+        #each runner is three rows %3
+        results = list()
+        for row in response.xpath("//table/tbody"):
+            tl = RPostItemsLoader(item=base_item, selector=row)
+            tl.add_xpath('horsename', "./tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/text()")
+            tl.add_xpath('rphorseurl', "./tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/@href")
+            tl.add_xpath('rphorseid', "./tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/@href", re=r"horse_id=([\d]+)" )
+            tl.add_xpath('commentText', "./tr[@class='rowComment']/td[2]/div/text()")
+            tl.add_xpath('rpOR', "./tr[2]/td[8]/text()")
+            tl.add_xpath('rpTS', "./tr[2]/td[9]/text()")
+            tl.add_xpath('rpRPR', "./tr[2]/td[10]/text()")
+            #PARSE HORSE WITH rphorseurl 
+            # http://www.racingpost.com/horses/horse_home.sd?horse_id=690846#topHorseTabs=horse_race_record&bottomHorseTabs=horse_form
+        # f = open(u'result', 'a+')
+        # f.write(response.body)
+            results.append(tl.load_item())
+        return results
