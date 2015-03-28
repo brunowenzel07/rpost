@@ -8,10 +8,52 @@ import scrapy
 from scrapy.contrib.loader import ItemLoader
 from scrapy.contrib.loader.processor import TakeFirst, Compose, Join, MapCompose
 import unicodedata
+import decimal
+
+def processOR(value):
+    if value == u"\u2014":
+        return u'-'
+    else:
+        return value
+
+def processTS(value):
+    return value
+
+
+def toascii(value):
+    return value.encode('ascii', 'ignore')
 
 
 
+# def gettotalprize(value):
+#     if value is None:
+#         return 0
+#     else:
+#         for p in value.split(', '):
+#             newp = toascii(p)
+#             ttl+= decimal.Decimal("".join(newp.split(",")))    
+#         return ttl
 #http://www.racingpost.com/horses/result_home.sd?race_id=618500&r_date=2015-02-27&popup=yes#results_top_tabs=re_&results_bottom_tabs=ANALYSIS
+
+# class RpostHorseItem(scrapy.Item):
+#     hdob =scrapy.Field()
+#     hage = scrapy.Field()
+#     hsex =scrapy.Field()
+#     hcolor =scrapy.Field()
+#     sire =scrapy.Field()
+#     rpsireid =scrapy.Field()
+#     dam =scrapy.Field()
+#     rpdamid=scrapy.Field()
+#     damsire = scrapy.Field()
+#     rpdamsireid =scrapy.Field()
+#     rptrainerid = scrapy.Field()
+#     owner =scrapy.Field()
+#     rpownerid = scrapy.Field()
+#     breeder =scrapy.Field()
+#     totalsales = scrapy.Field()
+
+
+
 class RpostResultsItem(scrapy.Item):
     # RACE SPECIFIC INFO
     racecourse = scrapy.Field()
@@ -67,21 +109,7 @@ class RpostResultsItem(scrapy.Item):
     #HORSE PAGE
     hdetails =scrapy.Field()
     gear = scrapy.Field()
-    hdob =scrapy.Field()
-    hage = scrapy.Field()
-    hsex =scrapy.Field()
-    hcolor =scrapy.Field()
-    sire =scrapy.Field()
-    rpsireid =scrapy.Field()
-    dam =scrapy.Field()
-    rpdamid=scrapy.Field()
-    damsire = scrapy.Field()
-    rpdamsireid =scrapy.Field()
-    rptrainerid = scrapy.Field()
-    owner =scrapy.Field()
-    rpownerid = scrapy.Field()
-    breeder =scrapy.Field()
-    totalsales = scrapy.Field()
+    
     #STATS LAST RACE
     L1date= scrapy.Field()
     dayssincelastrunL1 = scrapy.Field()
@@ -151,7 +179,28 @@ class RpostResultsItem(scrapy.Item):
     currentodds = scrapy.Field()
     L1prizemoneychange = scrapy.Field()
     avgpmL6 = scrapy.Field()
+    hdob =scrapy.Field()
+    hage = scrapy.Field()
+    hsex =scrapy.Field()
+    hcolor =scrapy.Field()
+    sire =scrapy.Field()
+    rpsireid =scrapy.Field()
+    dam =scrapy.Field()
+    rpdamid=scrapy.Field()
+    damsire = scrapy.Field()
+    rpdamsireid =scrapy.Field()
+    rptrainerid = scrapy.Field()
+    owner =scrapy.Field()
+    rpownerid = scrapy.Field()
+    breeder =scrapy.Field()
+    totalsales = scrapy.Field()
 
 class RPostItemsLoader(ItemLoader):
     default_item_class = RpostResultsItem
     default_output_processor = Compose(TakeFirst(), unicode, unicode.strip)
+    racename_out = Compose(Join(), unicode, unicode.strip)
+    racetime_out= Compose(Join(),unicode, unicode.strip)
+    rpOR_out = Compose(TakeFirst(), unicode, unicode.strip, processOR) 
+    rpTS_out = Compose(TakeFirst(), unicode, unicode.strip, processTS)
+    prizemoney_out =Compose(TakeFirst(), unicode, unicode.strip, toascii)
+    rphorseurl_out = Compose(TakeFirst(), unicode, unicode.strip)
