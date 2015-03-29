@@ -10,6 +10,8 @@ from datetime import datetime
 from rpost.items import RPostItemsLoader
 import json
 import pprint
+from utils import int2base
+import time
 
 # URL of container for login page.
 login_container_URL = u'http://www.racingpost.com/modal_dialog/container.sd?modal=false&modalType=login&layout=Home&protoSecure=0&from=header&senderUrl=%s&random=%d' % (u'http%3A//www.racingpost.com/', random.random()*10000000000000000)
@@ -17,6 +19,8 @@ login_container_URL = u'http://www.racingpost.com/modal_dialog/container.sd?moda
 profile_URL = u'https://reg.racingpost.com/cde/../account/profile.sd?_=%d' % (random.random()*10000000000000000)
 # Full result main page.
 fullResultMainURL = u'http://www.racingpost.com/horses2/results/home.sd?r_date=%s'
+# JSON API URL.
+JSONAPIURL = u'http://www.racingpost.com/shared/json_api.sd?_%d'
 
 # Crawler for racingpost.com.
 class RPFullResult(CrawlSpider):
@@ -36,6 +40,7 @@ class RPFullResult(CrawlSpider):
         if not self.date:
             self.date = datetime.date.today()
         self.fullResultMainURL = fullResultMainURL % (self.date)
+        self.requestID = 0
 
     # Set login and password.
     def setUser(self, login, password):
@@ -126,7 +131,6 @@ class RPFullResult(CrawlSpider):
         if not results_bottom_tabs_data:
             log.msg(u'Error in getting extra data script.', logLevel = log.WARNING)
         else:
-            jdata = None
             try:
                 jdata = json.loads(results_bottom_tabs_data.group(0).split(u';')[1].split(u' = ')[1])
                 analysis_local = jdata[u'ANALYSIS'][u'url']
@@ -134,47 +138,61 @@ class RPFullResult(CrawlSpider):
             except:
                 log.msg(u'Error. Json data of extra data not found.')
                 pass
+        # Get TS and RPR data.
+        raceID = None
+        raceID_data = analysis_URL.split(u'?')[1].split(u'&')
+        for item in raceID_data:
+            item = item.split('=')
+            if item[0] == u'race_id':
+                raceID = item[1]
+                break
+        requestID = int2base(int(time.time() * 1000) + self.requestID, 36)
+        self.requestID += 1
+        jdata = u'{"UserDetailsCollector":{"requestId":"%s"},"ContentSubscriptionCheckCollector":{"subscriptionCategoryList":["EDIT NOTES"],"requestId":"%s"},"RaceDetailsCollector":{"raceId":%s,"requestId":"%s"}}' % (requestID, requestID, raceID, requestID)
+        JSONAPIRequestURL = JSONAPIURL % (int(time.time() * 1000))
+        return [Request(JSONAPIRequestURL, method = u'POST', body = jdata, headers = {u'Content-Type': u'application/json'}, callback = self.parse_api_data)]
+
         #in any case get race data
-        rd = response.xpath("//div[@class='leftColBig']")        
-        l = RPostItemsLoader(selector=rd)
+        #rd = response.xpath("//div[@class='leftColBig']")        
+        #l = RPostItemsLoader(selector=rd)
 
         #URL
-        racedatematch = re.match(r'.*r_date=(\d\d\d\d-\d\d-\d\d)&.*', response.url)
-        if racedatematch:
-            l.add_value('racedate', datetime.strptime(racedatematch.group(1), "%Y-%M-%d") )
-        l.add_value('rpraceid', re.match(r'.*race_id=(\d+).*', response.url).group(1))
+        #racedatematch = re.match(r'.*r_date=(\d\d\d\d-\d\d-\d\d)&.*', response.url)
+        #if racedatematch:
+        #    l.add_value('racedate', datetime.strptime(racedatematch.group(1), "%Y-%M-%d") )
+        #l.add_value('rpraceid', re.match(r'.*race_id=(\d+).*', response.url).group(1))
 
 
         #eacedata
 
-        l.add_xpath('racecourse', ".//h1/text()[following-sibling::br]")
-        l.add_xpath('racetime', "//span[contains(@class,'timeNavigation')]/text()")
-        l.add_xpath('racename', "//h3[contains(@class,'clearfix')]/text()")
-        l.add_xpath('prizemoney', "//ul/li[2]/text()")
+        #l.add_xpath('racecourse', ".//h1/text()[following-sibling::br]")
+        #l.add_xpath('racetime', "//span[contains(@class,'timeNavigation')]/text()")
+        #l.add_xpath('racename', "//h3[contains(@class,'clearfix')]/text()")
+        #l.add_xpath('prizemoney', "//ul/li[2]/text()")
 
-        base_item = l.load_item()
+        #base_item = l.load_item()
         #each runner is three rows %3
-        runners =  response.selector.xpath("//table/tbody")
-        table_data = []
-        for row in runners:
-            tl = RPostItemsLoader(item=base_item, selector=row)
-            tl.add_xpath('position', ".//tr[2]/td[2]/h3/text()")
-            tl.add_xpath('horsename', ".//tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/text()")
-            tl.add_xpath('rphorseurl', ".//tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/@href")
-            tl.add_xpath('rphorseid', ".//tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/@href", re=r"horse_id=([\d]+)" )
-            tl.add_xpath('commentText', ".//tr[@class='rowComment']/td[2]/div/text()")
-            tl.add_xpath('rpOR', ".//tr[2]/td[8]/text()") #always present
-            tl.add_xpath('rpTS', ".//tr[2]/td[9]/*/text()")
-            tl.add_xpath('rpRPR', ".//tr[2]/td[10]/*/text()")
+        #runners =  response.selector.xpath("//table/tbody")
+        #table_data = []
+        #for row in runners:
+        #    tl = RPostItemsLoader(item=base_item, selector=row)
+        #    tl.add_xpath('position', ".//tr[2]/td[2]/h3/text()")
+        #    tl.add_xpath('horsename', ".//tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/text()")
+        #    tl.add_xpath('rphorseurl', ".//tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/@href")
+        #    tl.add_xpath('rphorseid', ".//tr[2]/td[4]/span/b/a[contains(@title,'Full details about this HORSE')]/@href", re=r"horse_id=([\d]+)" )
+        #    tl.add_xpath('commentText', ".//tr[@class='rowComment']/td[2]/div/text()")
+        #    tl.add_xpath('rpOR', ".//tr[2]/td[8]/text()") #always present
+        #    tl.add_xpath('rpTS', ".//tr[2]/td[9]/*/text()")
+        #    tl.add_xpath('rpRPR', ".//tr[2]/td[10]/*/text()")
 #PARSE HORSE WITH rphorseurl
 # http://www.racingpost.com/horses/horse_home.sd?horse_id=690846#topHorseTabs=horse_race_record&bottomHorseTabs=horse_form
 # f = open(u'result', 'a+')
 # f.write(response.body)
             # table_data.append(tl.load_item())
-            horse_URL = tl.get_output_value('rphorseurl')
-            i = tl.load_item()
-            table_data.append(i)
-            yield i
+            #horse_URL = tl.get_output_value('rphorseurl')
+            #i = tl.load_item()
+            #table_data.append(i)
+            #yield i
             # if horse_URL:
             #     i = tl.load_item()
             #     return [Request(url = horse_URL, callback = self.parse_analysis_horse, meta=dict(table_data=table_data)) ]
@@ -202,9 +220,8 @@ class RPFullResult(CrawlSpider):
         al = RPostItemsLoader() 
         al.add_value('racereport', response.body)  
         # l.add_value('racereport', response.xpath("//div[@id='ANALYSIS']/text()"))    
-        f = open(u'analysis', 'a+')
-        f.write(response.body)
-
+        #f = open(u'analysis', 'a+')
+        #f.write(response.body)
 
     def parse_analysis_horse(self, response):
         if not response:
@@ -215,3 +232,14 @@ class RPFullResult(CrawlSpider):
         #get fields 
         hl.add_xpath('hdob', ".//li[1]/b/text()")  
         yield hl.load_item()
+
+    def parse_api_data(self, response):
+        if not response:
+            log.msg(u'Error. API response is empty.', logLevel = log.ERROR)
+            return []
+        jdata = json.loads(response.body)
+        # Usage jdata:
+        print jdata[2][u'data']
+        # For example. For getting TS parameter use jdata[2][u'data'][horse_id_as_string][u'RpTops']
+        # BTW, horse id you can get on result page from data in this tag: <tr data-hid="">
+        return []
